@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git clone:*)",
+      "Bash(python:*)",
+      "Bash(curl:*)",
+      "Bash(findstr:*)",
+      "Bash(pip show:*)",
+      "Bash(pip install:*)",
+      "Skill(restart)",
+      "Bash(timeout /t 2 /nobreak)",
+      "Bash(tasklist:*)",
+      "Bash(taskkill //F //PID 24420)",
+      "Bash(taskkill //F //PID 11188)",
+      "Bash(taskkill /F /PID 23264)",
+      "Bash(powershell:*)",
+      "Bash(netstat:*)",
+      "Bash(taskkill //F //PID 6556)",
+      "Bash(timeout:*)",
+      "Bash(ping:*)",
+      "Bash(taskkill //F //PID 32268)",
+      "Bash(taskkill:*)",
+      "Bash(dir /b /o-d \"C:\\\\Project\\\\boris-workspace\\\\NextTranslate\\\\PrtSc\")",
+      "Bash(cd:*)",
+      "Bash(git init:*)",
+      "Bash(git add:*)"
+    ]
+  }
+}

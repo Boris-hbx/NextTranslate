@@ -1,0 +1,69 @@
+{
+  "version": 1,
+  "updated_at": "2026-01-11T12:22:51.063450",
+  "glossary": [
+    {
+      "id": "term_001",
+      "source": "machine learning",
+      "target": "机器学习",
+      "context": "AI/技术",
+      "note": ""
+    },
+    {
+      "id": "term_002",
+      "source": "API",
+      "target": "API",
+      "context": "技术术语",
+      "note": "保持英文"
+    },
+    {
+      "id": "term_003",
+      "source": "render",
+      "target": "渲染",
+      "context": "前端/图形",
+      "note": ""
+    },
+    {
+      "id": "term_15314ddc",
+      "source": "关键战场",
+      "target": "Key project",
+      "context": "",
+      "note": ""
+    },
+    {
+      "id": "term_015865a4",
+      "source": "系统安全团队",
+      "target": "DT team",
+      "context": "",
+      "note": ""
+    },
+    {
+      "id": "term_9b423649",
+      "source": "企业艺术安全空间",
+      "target": "Enterprise Art Safety Space",
+      "context": "",
+      "note": ""
+    },
+    {
+      "id": "term_1a7e5943",
+      "source": "安全上的需求",
+      "target": "Security needs",
+      "context": "",
+      "note": ""
+    },
+    {
+      "id": "term_d148683e",
+      "source": "生理上的需求",
+      "target": "Physiological needs",
+      "context": "",
+      "note": ""
+    },
+    {
+      "id": "term_290ff4c4",
+      "source": "宋小宝",
+      "target": "Song Xiaobao",
+      "context": "",
+      "note": ""
+    }
+  ]
+}

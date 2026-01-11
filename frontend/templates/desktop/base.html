@@ -1,0 +1,13 @@
+{% extends "shared/base_core.html" %}
+
+{% block platform_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+{% endblock %}
+
+{% block body_class %}platform-desktop{% endblock %}
+
+{% block body_content %}
+<div class="app-container">
+    {% block content %}{% endblock %}
+</div>
+{% endblock %}

@@ -1,0 +1,1617 @@
+{% extends "base.html" %}
+
+{% block title %}NextTranslate - 文档翻译{% endblock %}
+
+{% block content %}
+<div class="translator-container">
+    <!-- 顶部工具栏 -->
+    <header class="toolbar">
+        <div class="toolbar-left">
+            <span class="app-title">NextTranslate</span>
+            <span class="file-info" id="file-info"></span>
+        </div>
+        <div class="toolbar-right">
+            <button class="btn" id="btn-new" onclick="newDocument()" style="display:none">
+                新建
+            </button>
+            <div class="lang-switcher" id="lang-switcher" style="display:none">
+                <span class="lang-label" id="lang-from">中文</span>
+                <button class="btn btn-icon btn-swap" onclick="toggleDirection()" title="切换方向">&#8644;</button>
+                <span class="lang-label" id="lang-to">英文</span>
+            </div>
+            <button class="btn btn-primary" id="btn-translate-page" onclick="translateCurrentPage()" style="display:none">
+                翻译当前页
+            </button>
+            <button class="btn btn-primary" id="btn-translate-all" onclick="translateAllPages()" style="display:none">
+                翻译全部
+            </button>
+            <button class="btn" id="btn-screenshot" onclick="toggleScreenshotMode()" style="display:none">
+                &#9986; 截图翻译
+            </button>
+            <button class="btn btn-success" id="btn-download" onclick="downloadDocument()" style="display:none">
+                <span>&#128229;</span> 下载
+            </button>
+            <button class="btn" onclick="openGlossary()" title="词汇表">
+                &#128214; 词汇表
+            </button>
+            <button class="btn btn-icon" onclick="openSettings()" title="设置">
+                &#9881;
+            </button>
+        </div>
+    </header>
+
+    <!-- 主内容区 -->
+    <main class="main-area">
+        <!-- 空状态 - 上传 -->
+        <div class="empty-state" id="empty-state">
+            <div class="upload-zone" id="upload-zone">
+                <div class="upload-icon">&#128196;</div>
+                <p>拖拽 PDF 文件到这里，或点击上传</p>
+                <p class="upload-hint">支持 PDF 格式（PPT 请先导出为 PDF）</p>
+                <input type="file" id="file-input" accept=".pdf" style="display:none">
+            </div>
+        </div>
+
+        <!-- 翻译工作区 -->
+        <div class="workspace" id="workspace" style="display:none">
+            <div class="pane left-pane">
+                <div class="pane-header">
+                    <span class="pane-title">原文</span>
+                    <span class="screenshot-hint" id="screenshot-hint" style="display:none">框选区域进行翻译</span>
+                </div>
+                <div class="pane-body" id="left-pane-body">
+                    <img id="original-preview" src="" alt="原文预览">
+                    <div class="selection-overlay" id="selection-overlay"></div>
+                </div>
+            </div>
+            <div class="pane right-pane">
+                <div class="pane-header">
+                    <span class="pane-title">翻译结果</span>
+                    <span class="translation-status" id="page-status"></span>
+                </div>
+                <div class="pane-body" id="right-pane-body">
+                    <div class="preview-wrapper" id="preview-wrapper">
+                        <img id="translated-preview" src="" alt="翻译预览">
+                        <div class="translation-blocks" id="translation-blocks"></div>
+                        <div class="selection-preview" id="selection-preview"></div>
+                    </div>
+                    <div class="pending-overlay" id="pending-overlay">
+                        <span>点击"翻译当前页"或"截图翻译"</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- 底部分页 -->
+    <footer class="pagination" id="pagination" style="display:none">
+        <button class="btn btn-icon" id="btn-prev" onclick="prevPage()" disabled>&#9664;</button>
+        <span class="page-display">
+            <span id="current-page">1</span> / <span id="total-pages">1</span>
+        </span>
+        <button class="btn btn-icon" id="btn-next" onclick="nextPage()" disabled>&#9654;</button>
+        <input type="range" id="page-slider" class="page-slider" min="1" max="1" value="1" oninput="gotoPage(this.value)">
+    </footer>
+</div>
+
+<!-- 设置弹窗 -->
+<div class="modal" id="settings-modal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>设置</h3>
+            <button class="modal-close" onclick="closeSettings()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="settings-section">
+                <h4>豆包 API (火山引擎)</h4>
+                <div class="form-group">
+                    <label>API Key</label>
+                    <div class="input-with-toggle">
+                        <input type="password" id="doubao-key" placeholder="API Key">
+                        <button class="btn btn-icon btn-toggle-vis" onclick="toggleKeyVisibility('doubao-key')">&#128065;</button>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>Endpoint ID</label>
+                    <input type="text" id="doubao-endpoint" placeholder="ep-...">
+                    <button class="btn btn-sm" onclick="testAPI()">测试</button>
+                </div>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeSettings()">取消</button>
+            <button class="btn btn-primary" onclick="saveSettings()">保存</button>
+        </div>
+    </div>
+</div>
+<!-- 词汇表弹窗 -->
+<div class="modal" id="glossary-modal" style="display:none">
+    <div class="modal-content modal-wide">
+        <div class="modal-header">
+            <h3>专业词汇表</h3>
+            <div class="modal-header-actions">
+                <button class="btn btn-sm" onclick="openGlossaryFile()">打开文件</button>
+                <button class="modal-close" onclick="closeGlossary()">&times;</button>
+            </div>
+        </div>
+        <div class="modal-body">
+            <div class="glossary-toolbar">
+                <input type="text" id="glossary-search" placeholder="搜索词汇..." oninput="filterGlossary()">
+                <button class="btn btn-primary btn-sm" onclick="showAddTermForm()">+ 添加</button>
+            </div>
+            <div class="glossary-add-form" id="glossary-add-form" style="display:none">
+                <div class="form-row">
+                    <input type="text" id="new-term-source" placeholder="原文 (必填)">
+                    <input type="text" id="new-term-target" placeholder="译文 (必填)">
+                    <input type="text" id="new-term-context" placeholder="领域">
+                    <input type="text" id="new-term-note" placeholder="备注">
+                    <button class="btn btn-success btn-sm" onclick="addGlossaryTerm()">保存</button>
+                    <button class="btn btn-sm" onclick="hideAddTermForm()">取消</button>
+                </div>
+            </div>
+            <table class="glossary-table" id="glossary-table">
+                <thead>
+                    <tr>
+                        <th>原文</th>
+                        <th>译文</th>
+                        <th>领域</th>
+                        <th>备注</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="glossary-tbody">
+                </tbody>
+            </table>
+            <div class="glossary-empty" id="glossary-empty" style="display:none">
+                暂无词汇，点击「添加」按钮添加专业术语
+            </div>
+        </div>
+        <div class="modal-footer">
+            <span class="glossary-count" id="glossary-count">共 0 条</span>
+            <button class="btn" onclick="closeGlossary()">关闭</button>
+        </div>
+    </div>
+</div>
+<!-- 截图翻译弹窗 -->
+<div class="modal" id="screenshot-modal" style="display:none">
+    <div class="modal-content">
+        <div class="modal-header">
+            <h3>截图翻译</h3>
+            <button class="modal-close" onclick="closeScreenshotModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="translate-row">
+                <div class="translate-col">
+                    <label>识别原文</label>
+                    <textarea id="ocr-text" placeholder="正在识别..."></textarea>
+                </div>
+                <div class="translate-col">
+                    <label>翻译结果</label>
+                    <textarea id="screenshot-translation" placeholder="点击翻译按钮"></textarea>
+                </div>
+            </div>
+            <div class="translate-actions">
+                <button class="btn btn-primary" id="btn-do-translate" onclick="doScreenshotTranslate()">翻译</button>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeScreenshotModal()">取消</button>
+            <button class="btn" onclick="openAddGlossaryModal()" title="将选中内容添加到词汇表">+ 词表</button>
+            <button class="btn btn-success" onclick="saveScreenshotTranslation()">保存到文档</button>
+        </div>
+    </div>
+</div>
+<!-- 添加词表弹窗 -->
+<div class="modal" id="add-glossary-modal" style="display:none">
+    <div class="modal-content" style="max-width:500px">
+        <div class="modal-header">
+            <h3>添加到词汇表</h3>
+            <button class="modal-close" onclick="closeAddGlossaryModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="form-group" style="flex-direction:column;align-items:stretch">
+                <label>原文（可编辑）</label>
+                <input type="text" id="glossary-add-source" placeholder="输入原文">
+            </div>
+            <div class="form-group" style="flex-direction:column;align-items:stretch">
+                <label>译文（可编辑）</label>
+                <input type="text" id="glossary-add-target" placeholder="输入译文">
+            </div>
+            <div class="form-group" style="flex-direction:column;align-items:stretch">
+                <label>备注（可选）</label>
+                <input type="text" id="glossary-add-note" placeholder="如：专业术语、保持原文等">
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeAddGlossaryModal()">取消</button>
+            <button class="btn btn-primary" onclick="confirmAddGlossary()">添加</button>
+        </div>
+    </div>
+</div>
+<!-- 导出选项弹窗 -->
+<div class="modal" id="export-modal" style="display:none">
+    <div class="modal-content" style="max-width:400px">
+        <div class="modal-header">
+            <h3>导出 PDF</h3>
+            <button class="modal-close" onclick="closeExportModal()">&times;</button>
+        </div>
+        <div class="modal-body">
+            <div class="export-option-group">
+                <label class="option-title">导出格式</label>
+                <label class="radio-option">
+                    <input type="radio" name="export-mode" value="translation_only">
+                    <span>仅翻译结果</span>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="export-mode" value="side_by_side" checked>
+                    <span>左右对照（原文 + 翻译）</span>
+                </label>
+            </div>
+            <div class="export-option-group">
+                <label class="option-title">页面方向</label>
+                <label class="radio-option">
+                    <input type="radio" name="export-orientation" value="landscape" checked>
+                    <span>横向（推荐对照模式）</span>
+                </label>
+                <label class="radio-option">
+                    <input type="radio" name="export-orientation" value="portrait">
+                    <span>纵向</span>
+                </label>
+            </div>
+        </div>
+        <div class="modal-footer">
+            <button class="btn" onclick="closeExportModal()">取消</button>
+            <button class="btn btn-primary" onclick="doExport()">导出</button>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// 状态管理
+var state = {
+    fileId: null,
+    filename: '',
+    pages: [],              // 原始页面图片
+    translatedPages: [],    // 翻译后预览图
+    currentPage: 1,
+    totalPages: 0,
+    translationStatus: {},  // 每页翻译状态: pending | translating | translated | error
+    translateDirection: 'zh2en',  // 默认：中文 → 英文
+    screenshotMode: false,
+    currentSelection: null,
+    translationBlocks: []   // 框选翻译块 [{page, x, y, width, height, text}]
+};
+
+// 初始化
+document.addEventListener('DOMContentLoaded', function() {
+    initUpload();
+    initSelection();
+    initKeyboard();
+});
+
+// ============ 文件上传 ============
+
+function initUpload() {
+    var uploadZone = document.getElementById('upload-zone');
+    var fileInput = document.getElementById('file-input');
+
+    uploadZone.addEventListener('click', function() {
+        fileInput.click();
+    });
+
+    uploadZone.addEventListener('dragover', function(e) {
+        e.preventDefault();
+        uploadZone.classList.add('dragover');
+    });
+
+    uploadZone.addEventListener('dragleave', function() {
+        uploadZone.classList.remove('dragover');
+    });
+
+    uploadZone.addEventListener('drop', function(e) {
+        e.preventDefault();
+        uploadZone.classList.remove('dragover');
+        if (e.dataTransfer.files.length > 0) {
+            uploadFile(e.dataTransfer.files[0]);
+        }
+    });
+
+    fileInput.addEventListener('change', function() {
+        if (fileInput.files.length > 0) {
+            uploadFile(fileInput.files[0]);
+        }
+    });
+}
+
+function uploadFile(file) {
+    var filename = file.name.toLowerCase();
+    if (!filename.endsWith('.pdf')) {
+        showToast('请上传 PDF 文件（PPT 请先导出为 PDF）', 'error');
+        return;
+    }
+
+    document.getElementById('upload-zone').innerHTML = '<div class="loading">上传中...</div>';
+
+    var formData = new FormData();
+    formData.append('file', file);
+
+    fetch('/api/pdf/upload', {
+        method: 'POST',
+        body: formData
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.fileId = data.file_id;
+            state.filename = file.name;
+            state.pages = data.pages;
+            state.translatedPages = new Array(data.total).fill(null);
+            state.totalPages = data.total;
+            state.currentPage = 1;
+            state.translationStatus = {};
+            state.translationBlocks = [];
+
+            document.getElementById('file-info').textContent = file.name;
+            showWorkspace();
+            renderPage(1);
+            showToast('文件上传成功，共 ' + data.total + ' 页', 'success');
+        } else {
+            showToast(data.error || '上传失败', 'error');
+            resetUploadZone();
+        }
+    })
+    .catch(function(err) {
+        showToast('上传失败: ' + err.message, 'error');
+        resetUploadZone();
+    });
+}
+
+function resetUploadZone() {
+    document.getElementById('upload-zone').innerHTML =
+        '<div class="upload-icon">&#128196;</div>' +
+        '<p>拖拽 PDF 文件到这里，或点击上传</p>' +
+        '<p class="upload-hint">支持 PDF 格式（PPT 请先导出为 PDF）</p>';
+}
+
+function showWorkspace() {
+    document.getElementById('empty-state').style.display = 'none';
+    document.getElementById('workspace').style.display = 'flex';
+    document.getElementById('pagination').style.display = 'flex';
+    document.getElementById('btn-new').style.display = 'inline-flex';
+    document.getElementById('lang-switcher').style.display = 'flex';
+    document.getElementById('btn-translate-page').style.display = 'inline-flex';
+    document.getElementById('btn-translate-all').style.display = 'inline-flex';
+    document.getElementById('btn-screenshot').style.display = 'inline-flex';
+    document.getElementById('btn-download').style.display = 'inline-flex';
+
+    // 更新滑块
+    var slider = document.getElementById('page-slider');
+    slider.max = state.totalPages;
+    slider.value = 1;
+    document.getElementById('total-pages').textContent = state.totalPages;
+
+    updateLangDisplay();
+}
+
+function newDocument() {
+    // 重置状态
+    state.fileId = null;
+    state.filename = '';
+    state.pages = [];
+    state.translatedPages = [];
+    state.currentPage = 1;
+    state.totalPages = 0;
+    state.translationStatus = {};
+    state.screenshotMode = false;
+    state.currentSelection = null;
+    state.translationBlocks = [];
+
+    // 隐藏工作区
+    document.getElementById('workspace').style.display = 'none';
+    document.getElementById('pagination').style.display = 'none';
+    document.getElementById('btn-new').style.display = 'none';
+    document.getElementById('lang-switcher').style.display = 'none';
+    document.getElementById('btn-translate-page').style.display = 'none';
+    document.getElementById('btn-translate-all').style.display = 'none';
+    document.getElementById('btn-screenshot').style.display = 'none';
+    document.getElementById('btn-download').style.display = 'none';
+    document.getElementById('file-info').textContent = '';
+
+    // 显示上传区
+    document.getElementById('empty-state').style.display = 'flex';
+    resetUploadZone();
+
+    // 重置文件输入
+    document.getElementById('file-input').value = '';
+}
+
+// ============ 页面渲染 ============
+
+function renderPage(pageNum) {
+    var originalImg = document.getElementById('original-preview');
+    var translatedImg = document.getElementById('translated-preview');
+    var pendingOverlay = document.getElementById('pending-overlay');
+
+    // 显示原始页面
+    originalImg.src = state.pages[pageNum - 1] || '';
+
+    // 显示翻译后页面或待翻译提示
+    var status = state.translationStatus[pageNum] || 'pending';
+
+    if (status === 'translated' && state.translatedPages[pageNum - 1]) {
+        translatedImg.src = state.translatedPages[pageNum - 1];
+        translatedImg.style.display = 'block';
+        pendingOverlay.style.display = 'none';
+    } else {
+        translatedImg.style.display = 'none';
+        pendingOverlay.style.display = 'flex';
+
+        if (status === 'translating') {
+            pendingOverlay.querySelector('span').textContent = '翻译中...';
+        } else {
+            pendingOverlay.querySelector('span').textContent = '点击"翻译当前页"或"框选翻译"';
+        }
+    }
+
+    // 更新状态显示
+    updatePageStatus(pageNum);
+
+    // 更新页码
+    state.currentPage = pageNum;
+    document.getElementById('current-page').textContent = pageNum;
+    document.getElementById('page-slider').value = pageNum;
+
+    // 更新按钮状态
+    document.getElementById('btn-prev').disabled = (pageNum <= 1);
+    document.getElementById('btn-next').disabled = (pageNum >= state.totalPages);
+
+    // 渲染翻译块
+    renderTranslationBlocks(pageNum);
+}
+
+function renderTranslationBlocks(pageNum) {
+    var container = document.getElementById('translation-blocks');
+    if (!container) return;
+
+    container.innerHTML = '';
+
+    var pageBlocks = state.translationBlocks.filter(function(b) {
+        return b.page === pageNum;
+    });
+
+    if (pageBlocks.length === 0) return;
+
+    // 直接按原始位置渲染（不做自动重排）
+    pageBlocks.forEach(function(block) {
+        var idx = state.translationBlocks.indexOf(block);
+        var div = document.createElement('div');
+        div.className = 'translation-block';
+        div.style.left = block.x + '%';
+        div.style.top = block.y + '%';
+
+        // 根据文本内容计算合适的宽度
+        var textLen = 0;
+        for (var i = 0; i < block.text.length; i++) {
+            textLen += block.text.charCodeAt(i) > 127 ? 2 : 1;
+        }
+        // 基础宽度：每个字符约需要 0.8% 的宽度，最小8%，最大90%
+        var minWidthNeeded = Math.min(Math.max(textLen * 0.8, 8), 90);
+        // 使用用户设置的宽度和计算出的最小宽度中的较大值
+        var actualWidth = Math.max(block.width || 8, minWidthNeeded);
+        div.style.width = actualWidth + '%';
+
+        // 不设置固定高度，让内容自动撑开
+        div.title = '拖动移动 | 双击编辑 | 拖动角落调整大小';
+        div.setAttribute('data-index', idx);
+
+        // 文字内容
+        var textSpan = document.createElement('span');
+        textSpan.textContent = block.text;
+        div.appendChild(textSpan);
+
+        // 删除按钮
+        var deleteBtn = document.createElement('button');
+        deleteBtn.className = 'delete-btn';
+        deleteBtn.innerHTML = '&times;';
+        deleteBtn.title = '删除';
+        deleteBtn.onclick = function(e) {
+            e.stopPropagation();
+            deleteTranslationBlock(idx);
+        };
+        div.appendChild(deleteBtn);
+
+        // 调整大小手柄 - 右下角
+        var resizeSE = document.createElement('div');
+        resizeSE.className = 'resize-handle se';
+        resizeSE.addEventListener('mousedown', function(e) { startResizeBlock(e, 'se'); });
+        div.appendChild(resizeSE);
+
+        // 调整大小手柄 - 右边
+        var resizeE = document.createElement('div');
+        resizeE.className = 'resize-handle e';
+        resizeE.addEventListener('mousedown', function(e) { startResizeBlock(e, 'e'); });
+        div.appendChild(resizeE);
+
+        // 调整大小手柄 - 底部
+        var resizeS = document.createElement('div');
+        resizeS.className = 'resize-handle s';
+        resizeS.addEventListener('mousedown', function(e) { startResizeBlock(e, 's'); });
+        div.appendChild(resizeS);
+
+        // 双击编辑
+        div.addEventListener('dblclick', editTranslationBlock);
+
+        // 拖动功能
+        div.addEventListener('mousedown', startDragBlock);
+
+        container.appendChild(div);
+    });
+}
+
+// 拖动翻译框
+var dragState = { dragging: false, element: null, blockIdx: -1, startX: 0, startY: 0, originalX: 0, originalY: 0 };
+
+function startDragBlock(e) {
+    if (e.target.classList.contains('delete-btn')) return;
+    if (e.detail === 2) return; // 双击不触发拖动
+
+    var div = e.currentTarget;
+    var container = document.getElementById('translation-blocks');
+
+    dragState.dragging = true;
+    dragState.element = div;
+    dragState.blockIdx = parseInt(div.getAttribute('data-index'));
+    dragState.startX = e.clientX;
+    dragState.startY = e.clientY;
+    dragState.originalX = parseFloat(div.style.left);
+    dragState.originalY = parseFloat(div.style.top);
+    dragState.containerWidth = container.offsetWidth;
+    dragState.containerHeight = container.offsetHeight;
+
+    div.classList.add('dragging');
+    e.preventDefault();
+}
+
+document.addEventListener('mousemove', function(e) {
+    if (!dragState.dragging) return;
+
+    var dx = ((e.clientX - dragState.startX) / dragState.containerWidth) * 100;
+    var dy = ((e.clientY - dragState.startY) / dragState.containerHeight) * 100;
+
+    var newX = Math.max(0, dragState.originalX + dx);
+    var newY = Math.max(0, dragState.originalY + dy);
+
+    dragState.element.style.left = newX + '%';
+    dragState.element.style.top = newY + '%';
+});
+
+document.addEventListener('mouseup', function(e) {
+    // 处理拖动结束
+    if (dragState.dragging) {
+        dragState.element.classList.remove('dragging');
+
+        // 保存新位置
+        var newX = parseFloat(dragState.element.style.left);
+        var newY = parseFloat(dragState.element.style.top);
+
+        if (dragState.blockIdx >= 0 && state.translationBlocks[dragState.blockIdx]) {
+            var block = state.translationBlocks[dragState.blockIdx];
+            block.x = newX;
+            block.y = newY;
+
+            // 同步到服务器
+            saveScreenshotBlockToServer(block);
+        }
+
+        dragState.dragging = false;
+        dragState.element = null;
+    }
+
+    // 处理调整大小结束
+    if (resizeState.resizing) {
+        resizeState.element.classList.remove('resizing');
+
+        // 保存新尺寸
+        var newWidth = parseFloat(resizeState.element.style.width);
+        var newHeight = resizeState.element.style.height ? parseFloat(resizeState.element.style.height) : null;
+
+        if (resizeState.blockIdx >= 0 && state.translationBlocks[resizeState.blockIdx]) {
+            var block = state.translationBlocks[resizeState.blockIdx];
+            block.width = newWidth;
+            if (newHeight !== null) {
+                block.height = newHeight;
+            }
+
+            // 同步到服务器
+            saveScreenshotBlockToServer(block);
+        }
+
+        resizeState.resizing = false;
+        resizeState.element = null;
+    }
+});
+
+// 调整大小翻译框
+var resizeState = { resizing: false, element: null, blockIdx: -1, direction: '', startX: 0, startY: 0, originalWidth: 0, originalHeight: 0, containerWidth: 0, containerHeight: 0 };
+
+function startResizeBlock(e, direction) {
+    e.stopPropagation();
+    e.preventDefault();
+
+    var div = e.target.parentElement;
+    var container = document.getElementById('translation-blocks');
+
+    resizeState.resizing = true;
+    resizeState.element = div;
+    resizeState.blockIdx = parseInt(div.getAttribute('data-index'));
+    resizeState.direction = direction;
+    resizeState.startX = e.clientX;
+    resizeState.startY = e.clientY;
+    resizeState.originalWidth = parseFloat(div.style.width);
+    // height 可能未设置，需要计算
+    var computedHeight = div.offsetHeight / container.offsetHeight * 100;
+    resizeState.originalHeight = computedHeight;
+    resizeState.containerWidth = container.offsetWidth;
+    resizeState.containerHeight = container.offsetHeight;
+
+    div.classList.add('resizing');
+}
+
+document.addEventListener('mousemove', function(e) {
+    // 处理调整大小
+    if (resizeState.resizing) {
+        var dx = ((e.clientX - resizeState.startX) / resizeState.containerWidth) * 100;
+        var dy = ((e.clientY - resizeState.startY) / resizeState.containerHeight) * 100;
+
+        if (resizeState.direction === 'se') {
+            // 右下角：同时改变宽度和高度
+            var newWidth = Math.max(5, resizeState.originalWidth + dx);
+            var newHeight = Math.max(3, resizeState.originalHeight + dy);
+            resizeState.element.style.width = newWidth + '%';
+            resizeState.element.style.height = newHeight + '%';
+        } else if (resizeState.direction === 'e') {
+            // 右边：只改变宽度
+            var newWidth = Math.max(5, resizeState.originalWidth + dx);
+            resizeState.element.style.width = newWidth + '%';
+        } else if (resizeState.direction === 's') {
+            // 底部：只改变高度
+            var newHeight = Math.max(3, resizeState.originalHeight + dy);
+            resizeState.element.style.height = newHeight + '%';
+        }
+        return;
+    }
+});
+
+// 删除翻译框
+function deleteTranslationBlock(idx) {
+    if (idx < 0 || idx >= state.translationBlocks.length) return;
+
+    var block = state.translationBlocks[idx];
+    if (!confirm('确定删除这个翻译框？')) return;
+
+    // 从数组中移除
+    state.translationBlocks.splice(idx, 1);
+
+    // 从服务器删除
+    deleteBlockFromServer(block);
+
+    // 重新渲染
+    renderTranslationBlocks(state.currentPage);
+    showToast('翻译框已删除', 'success');
+}
+
+function deleteBlockFromServer(block) {
+    if (!state.fileId) return;
+
+    fetch('/api/pdf/delete-region-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            page: block.page,
+            block: block
+        })
+    }).catch(function(err) {
+        console.error('删除翻译块失败:', err);
+    });
+}
+
+function fitTextToBox(box, textEl) {
+    // 自动缩放文字以适应框大小
+    var maxFontSize = 16;
+    var minFontSize = 8;
+    var fontSize = maxFontSize;
+
+    textEl.style.fontSize = fontSize + 'px';
+
+    // 逐步减小字号直到文字适应框
+    while (fontSize > minFontSize) {
+        if (textEl.scrollHeight <= box.clientHeight && textEl.scrollWidth <= box.clientWidth) {
+            break;
+        }
+        fontSize--;
+        textEl.style.fontSize = fontSize + 'px';
+    }
+}
+
+function editTranslationBlock(e) {
+    // 获取翻译框 div（可能点击的是内部 span）
+    var target = e.target;
+    if (!target.classList.contains('translation-block')) {
+        target = target.parentElement;
+    }
+    var idx = parseInt(target.getAttribute('data-index'));
+    if (isNaN(idx) || !state.translationBlocks[idx]) return;
+
+    var block = state.translationBlocks[idx];
+    var newText = prompt('编辑翻译内容:', block.text);
+    if (newText !== null && newText.trim() !== '') {
+        state.translationBlocks[idx].text = newText.trim();
+        renderTranslationBlocks(state.currentPage);
+        // 同步更新到服务器
+        saveScreenshotBlockToServer(state.translationBlocks[idx]);
+        showToast('翻译已更新', 'success');
+    }
+}
+
+function prevPage() {
+    if (state.currentPage > 1) {
+        renderPage(state.currentPage - 1);
+    }
+}
+
+function nextPage() {
+    if (state.currentPage < state.totalPages) {
+        renderPage(state.currentPage + 1);
+    }
+}
+
+function gotoPage(pageNum) {
+    var page = parseInt(pageNum);
+    if (page >= 1 && page <= state.totalPages) {
+        renderPage(page);
+    }
+}
+
+// ============ 语种切换 ============
+
+function toggleDirection() {
+    state.translateDirection = (state.translateDirection === 'en2zh') ? 'zh2en' : 'en2zh';
+    updateLangDisplay();
+}
+
+function updateLangDisplay() {
+    var fromLang = state.translateDirection === 'en2zh' ? '英文' : '中文';
+    var toLang = state.translateDirection === 'en2zh' ? '中文' : '英文';
+    document.getElementById('lang-from').textContent = fromLang;
+    document.getElementById('lang-to').textContent = toLang;
+}
+
+// ============ 翻译功能 ============
+
+function translateCurrentPage() {
+    var pageNum = state.currentPage;
+
+    var btn = document.getElementById('btn-translate-page');
+    btn.disabled = true;
+    btn.textContent = '翻译中...';
+
+    // 更新状态显示
+    state.translationStatus[pageNum] = 'translating';
+    updatePageStatus(pageNum);
+    showToast('正在翻译第 ' + pageNum + ' 页...', 'info');
+
+    fetch('/api/pdf/translate-page', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            page: pageNum,
+            direction: state.translateDirection
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.translatedPages[pageNum - 1] = data.preview;
+            state.translationStatus[pageNum] = 'translated';
+            renderPage(pageNum);
+            showToast('第 ' + pageNum + ' 页翻译完成', 'success');
+        } else {
+            state.translationStatus[pageNum] = 'error';
+            updatePageStatus(pageNum);
+            showToast('翻译失败: ' + data.error, 'error');
+        }
+    })
+    .catch(function(err) {
+        state.translationStatus[pageNum] = 'error';
+        updatePageStatus(pageNum);
+        showToast('翻译失败: ' + err.message, 'error');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '翻译当前页';
+    });
+}
+
+function updatePageStatus(pageNum) {
+    var status = state.translationStatus[pageNum] || 'pending';
+    var pageStatus = document.getElementById('page-status');
+
+    var statusText = {
+        'pending': '待翻译',
+        'translating': '翻译中...',
+        'translated': '已翻译',
+        'error': '翻译失败'
+    };
+
+    var statusClass = {
+        'pending': 'pending',
+        'translating': 'pending',
+        'translated': 'translated',
+        'error': 'pending'
+    };
+
+    pageStatus.textContent = statusText[status];
+    pageStatus.className = 'translation-status ' + statusClass[status];
+}
+
+function translateAllPages() {
+    var btn = document.getElementById('btn-translate-all');
+    btn.disabled = true;
+    btn.textContent = '翻译中 0/' + state.totalPages;
+
+    showToast('正在翻译全部 ' + state.totalPages + ' 页，请稍候...', 'info');
+
+    // 标记所有页面为翻译中
+    for (var i = 1; i <= state.totalPages; i++) {
+        state.translationStatus[i] = 'translating';
+    }
+
+    fetch('/api/pdf/translate-all', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            direction: state.translateDirection
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            state.translatedPages = data.pages;
+            for (var i = 1; i <= state.totalPages; i++) {
+                state.translationStatus[i] = 'translated';
+            }
+            renderPage(state.currentPage);
+            showToast('全部 ' + state.totalPages + ' 页翻译完成', 'success');
+        } else {
+            showToast('翻译失败: ' + data.error, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('翻译失败: ' + err.message, 'error');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '翻译全部';
+    });
+}
+
+// ============ 下载导出 ============
+
+function downloadDocument() {
+    if (!state.fileId) {
+        showToast('没有可下载的文档', 'error');
+        return;
+    }
+
+    // 检查是否有已翻译的页面
+    var hasTranslation = false;
+    for (var key in state.translationStatus) {
+        if (state.translationStatus[key] === 'translated') {
+            hasTranslation = true;
+            break;
+        }
+    }
+
+    if (!hasTranslation) {
+        showToast('请先翻译至少一页内容', 'error');
+        return;
+    }
+
+    // 显示导出选项弹窗
+    document.getElementById('export-modal').style.display = 'flex';
+}
+
+function closeExportModal() {
+    document.getElementById('export-modal').style.display = 'none';
+}
+
+function doExport() {
+    var modeEl = document.querySelector('input[name="export-mode"]:checked');
+    var orientationEl = document.querySelector('input[name="export-orientation"]:checked');
+
+    var mode = modeEl ? modeEl.value : 'side_by_side';
+    var orientation = orientationEl ? orientationEl.value : 'landscape';
+
+    closeExportModal();
+    showToast('正在生成 PDF...', 'info');
+
+    var url = '/api/pdf/export?file_id=' + encodeURIComponent(state.fileId) +
+              '&mode=' + encodeURIComponent(mode) +
+              '&orientation=' + encodeURIComponent(orientation);
+
+    window.location.href = url;
+}
+
+// ============ 设置 ============
+
+function openSettings() {
+    document.getElementById('settings-modal').style.display = 'flex';
+
+    fetch('/api/settings')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.doubao_api_key_set) {
+            document.getElementById('doubao-key').placeholder = '已配置 (输入新值覆盖)';
+        }
+        if (data.doubao_endpoint_id) {
+            document.getElementById('doubao-endpoint').value = data.doubao_endpoint_id;
+        }
+    });
+}
+
+function closeSettings() {
+    document.getElementById('settings-modal').style.display = 'none';
+}
+
+function saveSettings() {
+    var doubaoKey = document.getElementById('doubao-key').value.trim();
+    var doubaoEndpoint = document.getElementById('doubao-endpoint').value.trim();
+
+    var settings = {};
+    if (doubaoKey) settings.doubao_api_key = doubaoKey;
+    if (doubaoEndpoint) settings.doubao_endpoint_id = doubaoEndpoint;
+
+    fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settings)
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('设置已保存', 'success');
+            closeSettings();
+        } else {
+            showToast('保存失败', 'error');
+        }
+    });
+}
+
+function testAPI() {
+    var apiKey = document.getElementById('doubao-key').value.trim();
+    var endpointId = document.getElementById('doubao-endpoint').value.trim();
+
+    if (!apiKey || !endpointId) {
+        showToast('请输入 API Key 和 Endpoint ID', 'error');
+        return;
+    }
+
+    showToast('正在测试...', 'info');
+
+    fetch('/api/test-api', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            provider: 'doubao',
+            api_key: apiKey,
+            endpoint_id: endpointId
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('API 连接成功', 'success');
+        } else {
+            showToast('测试失败: ' + data.error, 'error');
+        }
+    });
+}
+
+function toggleKeyVisibility(inputId) {
+    var input = document.getElementById(inputId);
+    input.type = (input.type === 'password') ? 'text' : 'password';
+}
+
+// ============ 词汇表管理 ============
+
+var glossaryData = [];
+
+function openGlossary() {
+    document.getElementById('glossary-modal').style.display = 'flex';
+    loadGlossary();
+}
+
+function closeGlossary() {
+    document.getElementById('glossary-modal').style.display = 'none';
+}
+
+function loadGlossary() {
+    fetch('/api/glossary')
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            glossaryData = data.glossary || [];
+            renderGlossaryTable(glossaryData);
+        }
+    });
+}
+
+function renderGlossaryTable(terms) {
+    var tbody = document.getElementById('glossary-tbody');
+    var emptyDiv = document.getElementById('glossary-empty');
+    var countSpan = document.getElementById('glossary-count');
+
+    if (terms.length === 0) {
+        tbody.innerHTML = '';
+        emptyDiv.style.display = 'block';
+        document.getElementById('glossary-table').style.display = 'none';
+    } else {
+        emptyDiv.style.display = 'none';
+        document.getElementById('glossary-table').style.display = 'table';
+
+        var html = '';
+        for (var i = 0; i < terms.length; i++) {
+            var t = terms[i];
+            html += '<tr data-id="' + t.id + '">';
+            html += '<td>' + escapeHtml(t.source) + '</td>';
+            html += '<td>' + escapeHtml(t.target) + '</td>';
+            html += '<td>' + escapeHtml(t.context || '') + '</td>';
+            html += '<td>' + escapeHtml(t.note || '') + '</td>';
+            html += '<td>';
+            html += '<button class="btn btn-sm" onclick="editTerm(\'' + t.id + '\')">编辑</button> ';
+            html += '<button class="btn btn-sm btn-danger" onclick="deleteTerm(\'' + t.id + '\')">删除</button>';
+            html += '</td>';
+            html += '</tr>';
+        }
+        tbody.innerHTML = html;
+    }
+    countSpan.textContent = '共 ' + terms.length + ' 条';
+}
+
+function escapeHtml(text) {
+    var div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function filterGlossary() {
+    var search = document.getElementById('glossary-search').value.toLowerCase();
+    if (!search) {
+        renderGlossaryTable(glossaryData);
+        return;
+    }
+    var filtered = glossaryData.filter(function(t) {
+        return t.source.toLowerCase().indexOf(search) >= 0 ||
+               t.target.toLowerCase().indexOf(search) >= 0 ||
+               (t.context && t.context.toLowerCase().indexOf(search) >= 0);
+    });
+    renderGlossaryTable(filtered);
+}
+
+function showAddTermForm() {
+    document.getElementById('glossary-add-form').style.display = 'block';
+    document.getElementById('new-term-source').value = '';
+    document.getElementById('new-term-target').value = '';
+    document.getElementById('new-term-context').value = '';
+    document.getElementById('new-term-note').value = '';
+    document.getElementById('new-term-source').focus();
+}
+
+function hideAddTermForm() {
+    document.getElementById('glossary-add-form').style.display = 'none';
+}
+
+function addGlossaryTerm() {
+    var source = document.getElementById('new-term-source').value.trim();
+    var target = document.getElementById('new-term-target').value.trim();
+    var context = document.getElementById('new-term-context').value.trim();
+    var note = document.getElementById('new-term-note').value.trim();
+
+    if (!source || !target) {
+        showToast('原文和译文不能为空', 'error');
+        return;
+    }
+
+    fetch('/api/glossary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: source, target: target, context: context, note: note })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('词条已添加', 'success');
+            hideAddTermForm();
+            loadGlossary();
+        } else {
+            showToast(data.error, 'error');
+        }
+    });
+}
+
+function editTerm(termId) {
+    var term = glossaryData.find(function(t) { return t.id === termId; });
+    if (!term) return;
+
+    var newSource = prompt('原文:', term.source);
+    if (newSource === null) return;
+    var newTarget = prompt('译文:', term.target);
+    if (newTarget === null) return;
+
+    fetch('/api/glossary/' + termId, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: newSource, target: newTarget })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('词条已更新', 'success');
+            loadGlossary();
+        } else {
+            showToast(data.error, 'error');
+        }
+    });
+}
+
+function deleteTerm(termId) {
+    if (!confirm('确定删除该词条？')) return;
+
+    fetch('/api/glossary/' + termId, { method: 'DELETE' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('词条已删除', 'success');
+            loadGlossary();
+        } else {
+            showToast(data.error, 'error');
+        }
+    });
+}
+
+function openGlossaryFile() {
+    fetch('/api/glossary/open-file', { method: 'POST' })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('已打开文件', 'success');
+        } else {
+            showToast(data.error, 'error');
+        }
+    });
+}
+
+function openAddGlossaryModal() {
+    var source = document.getElementById('ocr-text').value.trim();
+    var target = document.getElementById('screenshot-translation').value.trim();
+
+    if (!source || !target) {
+        showToast('请先完成识别和翻译', 'error');
+        return;
+    }
+
+    // 预填充，用户可以编辑
+    document.getElementById('glossary-add-source').value = source;
+    document.getElementById('glossary-add-target').value = target;
+    document.getElementById('glossary-add-note').value = '';
+
+    document.getElementById('add-glossary-modal').style.display = 'flex';
+    document.getElementById('glossary-add-source').select();
+}
+
+function closeAddGlossaryModal() {
+    document.getElementById('add-glossary-modal').style.display = 'none';
+}
+
+function confirmAddGlossary() {
+    var source = document.getElementById('glossary-add-source').value.trim();
+    var target = document.getElementById('glossary-add-target').value.trim();
+    var note = document.getElementById('glossary-add-note').value.trim();
+
+    if (!source || !target) {
+        showToast('原文和译文不能为空', 'error');
+        return;
+    }
+
+    fetch('/api/glossary', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source: source, target: target, context: '', note: note })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            showToast('已添加: ' + source + ' → ' + target, 'success');
+            closeAddGlossaryModal();
+        } else {
+            showToast(data.error, 'error');
+        }
+    });
+}
+
+// ============ 截图翻译 ============
+
+function initSelection() {
+    var leftPane = document.getElementById('left-pane-body');
+    var overlay = document.getElementById('selection-overlay');
+    var preview = document.getElementById('selection-preview');
+    var isSelecting = false;
+    var startX, startY, paneRect, imgRect;
+
+    leftPane.addEventListener('mousedown', function(e) {
+        if (!state.screenshotMode) return;
+        e.preventDefault();
+
+        paneRect = leftPane.getBoundingClientRect();
+        var img = document.getElementById('original-preview');
+        imgRect = img.getBoundingClientRect();
+
+        startX = e.clientX - paneRect.left;
+        startY = e.clientY - paneRect.top;
+        isSelecting = true;
+
+        overlay.style.left = startX + 'px';
+        overlay.style.top = startY + 'px';
+        overlay.style.width = '0';
+        overlay.style.height = '0';
+        overlay.style.display = 'block';
+
+        // 显示右侧预览
+        preview.style.display = 'block';
+    });
+
+    document.addEventListener('mousemove', function(e) {
+        if (!isSelecting) return;
+
+        var currentX = e.clientX - paneRect.left;
+        var currentY = e.clientY - paneRect.top;
+
+        var x = Math.min(startX, currentX);
+        var y = Math.min(startY, currentY);
+        var w = Math.abs(currentX - startX);
+        var h = Math.abs(currentY - startY);
+
+        // 更新左侧框选框
+        overlay.style.left = x + 'px';
+        overlay.style.top = y + 'px';
+        overlay.style.width = w + 'px';
+        overlay.style.height = h + 'px';
+
+        // 计算相对于图片的百分比位置
+        var imgOffsetX = imgRect.left - paneRect.left;
+        var imgOffsetY = imgRect.top - paneRect.top;
+        var imgWidth = imgRect.width;
+        var imgHeight = imgRect.height;
+
+        var xPct = ((x - imgOffsetX) / imgWidth) * 100;
+        var yPct = ((y - imgOffsetY) / imgHeight) * 100;
+        var wPct = (w / imgWidth) * 100;
+        var hPct = (h / imgHeight) * 100;
+
+        // 更新右侧预览框（相对于图片）
+        preview.style.left = xPct + '%';
+        preview.style.top = yPct + '%';
+        preview.style.width = wPct + '%';
+        preview.style.height = hPct + '%';
+
+        // 检测重叠
+        var hasOverlap = checkSelectionOverlap(xPct, yPct, wPct, hPct);
+        if (hasOverlap) {
+            preview.classList.add('overlap-warning');
+        } else {
+            preview.classList.remove('overlap-warning');
+        }
+    });
+
+    document.addEventListener('mouseup', function(e) {
+        if (!isSelecting) return;
+        isSelecting = false;
+
+        var currentX = e.clientX - paneRect.left;
+        var currentY = e.clientY - paneRect.top;
+
+        var x = Math.min(startX, currentX);
+        var y = Math.min(startY, currentY);
+        var w = Math.abs(currentX - startX);
+        var h = Math.abs(currentY - startY);
+
+        overlay.style.display = 'none';
+        preview.style.display = 'none';
+        preview.classList.remove('overlap-warning');
+
+        if (w > 10 && h > 10) {
+            captureAndTranslate(x, y, w, h, paneRect.width, paneRect.height);
+        }
+    });
+}
+
+// 检测选区是否与已有翻译框重叠
+function checkSelectionOverlap(x, y, w, h) {
+    var pageBlocks = state.translationBlocks.filter(function(b) {
+        return b.page === state.currentPage;
+    });
+
+    for (var i = 0; i < pageBlocks.length; i++) {
+        var block = pageBlocks[i];
+        // 检查 X 方向是否有交集
+        var xOverlap = !(x + w <= block.x || x >= block.x + block.width);
+        // 检查 Y 方向是否有交集
+        var yOverlap = !(y + h <= block.y || y >= block.y + block.height);
+
+        if (xOverlap && yOverlap) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function toggleScreenshotMode() {
+    state.screenshotMode = !state.screenshotMode;
+    var btn = document.getElementById('btn-screenshot');
+    var leftPane = document.getElementById('left-pane-body');
+    var hint = document.getElementById('screenshot-hint');
+
+    if (state.screenshotMode) {
+        btn.classList.add('active');
+        leftPane.style.cursor = 'crosshair';
+        hint.style.display = 'inline';
+    } else {
+        btn.classList.remove('active');
+        leftPane.style.cursor = 'default';
+        hint.style.display = 'none';
+    }
+}
+
+function captureAndTranslate(x, y, w, h, paneW, paneH) {
+    // 获取原始图片进行裁剪
+    var img = document.getElementById('original-preview');
+    var canvas = document.createElement('canvas');
+    var ctx = canvas.getContext('2d');
+
+    // 计算图片上的实际位置
+    var imgRect = img.getBoundingClientRect();
+    var paneRect = document.getElementById('left-pane-body').getBoundingClientRect();
+
+    var imgOffsetX = imgRect.left - paneRect.left;
+    var imgOffsetY = imgRect.top - paneRect.top;
+    var imgWidth = imgRect.width;
+    var imgHeight = imgRect.height;
+
+    // 计算相对于图片的百分比位置（与预览框一致）
+    var xPercent = ((x - imgOffsetX) / imgWidth) * 100;
+    var yPercent = ((y - imgOffsetY) / imgHeight) * 100;
+    var wPercent = (w / imgWidth) * 100;
+    var hPercent = (h / imgHeight) * 100;
+
+    var scaleX = img.naturalWidth / imgWidth;
+    var scaleY = img.naturalHeight / imgHeight;
+
+    var cropX = (x - imgOffsetX) * scaleX;
+    var cropY = (y - imgOffsetY) * scaleY;
+    var cropW = w * scaleX;
+    var cropH = h * scaleY;
+
+    canvas.width = cropW;
+    canvas.height = cropH;
+    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, cropW, cropH);
+
+    var imageData = canvas.toDataURL('image/png');
+
+    state.currentSelection = {
+        x: xPercent,
+        y: yPercent,
+        width: wPercent,
+        height: hPercent,
+        page: state.currentPage,
+        imageData: imageData
+    };
+
+    // 打开翻译弹窗
+    document.getElementById('screenshot-modal').style.display = 'flex';
+    document.getElementById('ocr-text').value = '正在识别...';
+    document.getElementById('screenshot-translation').value = '';
+
+    // 调用豆包视觉模型直接翻译
+    doScreenshotTranslate();
+}
+
+function closeScreenshotModal() {
+    document.getElementById('screenshot-modal').style.display = 'none';
+    state.currentSelection = null;
+}
+
+function doScreenshotTranslate() {
+    if (!state.currentSelection) {
+        showToast('请先框选区域', 'error');
+        return;
+    }
+
+    var btn = document.getElementById('btn-do-translate');
+    btn.disabled = true;
+    btn.textContent = '翻译中...';
+
+    fetch('/api/pdf/translate-region', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            page: state.currentSelection.page,
+            region: {
+                x: state.currentSelection.x,
+                y: state.currentSelection.y,
+                width: state.currentSelection.width,
+                height: state.currentSelection.height
+            },
+            image: state.currentSelection.imageData,
+            direction: state.translateDirection
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (data.success) {
+            document.getElementById('ocr-text').value = data.original || '(无法识别原文)';
+            document.getElementById('screenshot-translation').value = data.translated || '';
+        } else {
+            showToast('翻译失败: ' + data.error, 'error');
+        }
+    })
+    .catch(function(err) {
+        showToast('翻译失败: ' + err.message, 'error');
+    })
+    .finally(function() {
+        btn.disabled = false;
+        btn.textContent = '翻译';
+    });
+}
+
+function saveScreenshotTranslation() {
+    var text = document.getElementById('screenshot-translation').value.trim();
+    var originalText = document.getElementById('ocr-text').value.trim();
+    if (!text || !state.currentSelection) {
+        showToast('请先完成翻译', 'error');
+        return;
+    }
+
+    // 计算合适的宽度：英文通常比中文长，需要扩展框宽度
+    var originalWidth = state.currentSelection.width;
+    var adjustedWidth = originalWidth;
+
+    // 计算文本长度比（考虑中英文差异）
+    // 中文字符算2，英文/数字算1
+    function getTextWidth(str) {
+        var width = 0;
+        for (var i = 0; i < str.length; i++) {
+            var code = str.charCodeAt(i);
+            if (code > 127) {
+                width += 2; // 中文等宽字符
+            } else {
+                width += 1; // ASCII 字符
+            }
+        }
+        return width;
+    }
+
+    var originalLen = getTextWidth(originalText);
+    var translatedLen = getTextWidth(text);
+
+    // 如果翻译后的文本更长，扩展宽度（最多扩展到原宽度的2倍）
+    if (translatedLen > originalLen && originalLen > 0) {
+        var ratio = Math.min(translatedLen / originalLen, 2.0);
+        adjustedWidth = Math.min(originalWidth * ratio, 90); // 最大不超过90%
+    }
+
+    // 确保最小宽度，避免太窄
+    adjustedWidth = Math.max(adjustedWidth, 8);
+
+    var newBlock = {
+        page: state.currentSelection.page,
+        x: state.currentSelection.x,
+        y: state.currentSelection.y,
+        width: adjustedWidth,
+        height: state.currentSelection.height,
+        text: text,
+        original: originalText
+    };
+
+    // 移除与新块重叠的旧块
+    state.translationBlocks = state.translationBlocks.filter(function(block) {
+        if (block.page !== newBlock.page) return true;
+        return !isOverlapping(block, newBlock);
+    });
+
+    // 添加新块
+    state.translationBlocks.push(newBlock);
+
+    // 标记该页有翻译内容
+    state.translationStatus[state.currentSelection.page] = 'translated';
+
+    // 立即在右侧显示翻译框
+    renderTranslationBlocks(state.currentPage);
+
+    // 同步到服务器的 metadata
+    saveScreenshotBlockToServer(newBlock);
+
+    closeScreenshotModal();
+    showToast('翻译已保存', 'success');
+}
+
+function isOverlapping(blockA, blockB) {
+    // 检查两个矩形是否重叠
+    var ax1 = blockA.x, ay1 = blockA.y;
+    var ax2 = blockA.x + blockA.width, ay2 = blockA.y + blockA.height;
+    var bx1 = blockB.x, by1 = blockB.y;
+    var bx2 = blockB.x + blockB.width, by2 = blockB.y + blockB.height;
+
+    // 计算重叠面积
+    var overlapX = Math.max(0, Math.min(ax2, bx2) - Math.max(ax1, bx1));
+    var overlapY = Math.max(0, Math.min(ay2, by2) - Math.max(ay1, by1));
+    var overlapArea = overlapX * overlapY;
+
+    // 如果重叠面积超过任一块的 30%，认为需要替换
+    var areaA = blockA.width * blockA.height;
+    var areaB = blockB.width * blockB.height;
+    var threshold = 0.3;
+
+    return overlapArea > areaA * threshold || overlapArea > areaB * threshold;
+}
+
+function saveScreenshotBlockToServer(block) {
+    // 将截图翻译块保存到服务器 metadata（用于导出）
+    if (!state.fileId) return;
+
+    fetch('/api/pdf/save-region-block', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            page: block.page,
+            block: block
+        })
+    })
+    .then(function(r) { return r.json(); })
+    .then(function(data) {
+        if (!data.success) {
+            console.error('保存翻译块失败:', data.error);
+        }
+    })
+    .catch(function(err) {
+        console.error('保存翻译块失败:', err);
+    });
+}
+
+// ============ 键盘快捷键 ============
+
+function initKeyboard() {
+    document.addEventListener('keydown', function(e) {
+        if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+        if (document.getElementById('settings-modal').style.display === 'flex') return;
+        if (document.getElementById('screenshot-modal').style.display === 'flex') return;
+
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            prevPage();
+        } else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            nextPage();
+        } else if (e.key === 'Escape' && state.screenshotMode) {
+            toggleScreenshotMode();
+        }
+    });
+}
+</script>
+{% endblock %}
