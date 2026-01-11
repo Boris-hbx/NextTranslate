@@ -1,0 +1,36 @@
+[package]
+name = "next-translate"
+version = "1.0.0"
+description = "NextTranslate - Document Translation App"
+authors = ["Boris Huai"]
+edition = "2021"
+rust-version = "1.70"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+tauri-plugin-shell = "2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11", features = ["json"] }
+log = "0.4"
+env_logger = "0.10"
+dirs = "5"
+sysinfo = "0.30"
+
+[target.'cfg(windows)'.dependencies]
+winapi = { version = "0.3", features = ["tlhelp32", "processthreadsapi", "handleapi"] }
+
+[features]
+default = ["custom-protocol"]
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+panic = "abort"
+codegen-units = 1
+lto = true
+opt-level = "s"
+strip = true

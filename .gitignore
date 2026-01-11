@@ -26,6 +26,8 @@ ENV/
 # Rust/Tauri
 src-tauri/target/
 src-tauri/resources/*.exe
+src-tauri/Cargo.lock
+*.pdb
 
 # Node
 node_modules/
