@@ -1732,10 +1732,29 @@ def generate_translated_image(img, trans_data, metadata):
     scale_x = img_width / pdf_width if pdf_width else 1
     scale_y = img_height / pdf_height if pdf_height else 1
 
-    # 只使用截图翻译框（与网页显示保持一致）
     all_blocks = []
 
-    # 只处理截图翻译的 region_blocks（百分比坐标）
+    # 1. 处理"翻译当前页"的 blocks（像素坐标，需要缩放）
+    blocks = trans_data.get('blocks', [])
+    for b in blocks:
+        bbox = b.get('bbox', [])
+        text = b.get('translated', '')
+
+        if not text or len(bbox) < 4:
+            continue
+
+        # bbox 是 [x0, y0, x1, y1] 格式，基于原始 PDF 尺寸
+        x0 = int(bbox[0] * scale_x)
+        y0 = int(bbox[1] * scale_y)
+        x1 = int(bbox[2] * scale_x)
+        y1 = int(bbox[3] * scale_y)
+
+        all_blocks.append({
+            'x0': x0, 'y0': y0, 'x1': x1, 'y1': y1,
+            'text': text, 'original_y': y0
+        })
+
+    # 2. 处理截图翻译的 region_blocks（百分比坐标）
     region_blocks = trans_data.get('region_blocks', [])
     for rb in region_blocks:
         x_pct = rb.get('x', 0)

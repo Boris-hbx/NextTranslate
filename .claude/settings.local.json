@@ -23,7 +23,12 @@
       "Bash(dir /b /o-d \"C:\\\\Project\\\\boris-workspace\\\\NextTranslate\\\\PrtSc\")",
       "Bash(cd:*)",
       "Bash(git init:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$\\(cat <<''EOF''\nInitial commit: NextTranslate document translation app\n\n- Flask backend with PDF/OCR/translation APIs\n- Jinja2 templates for translator UI\n- Support for DeepSeek and Doubao AI models\n- Screenshot selection and translation overlay\n\nCo-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>\nEOF\n\\)\")",
+      "Bash(git config:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)"
     ]
   }
 }

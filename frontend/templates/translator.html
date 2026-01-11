@@ -496,10 +496,10 @@ function renderTranslationBlocks(pageNum) {
         for (var i = 0; i < block.text.length; i++) {
             textLen += block.text.charCodeAt(i) > 127 ? 2 : 1;
         }
-        // 基础宽度：每个字符约需要 0.8% 的宽度，最小8%，最大90%
-        var minWidthNeeded = Math.min(Math.max(textLen * 0.8, 8), 90);
+        // 基础宽度：每个字符约需要 1.5% 的宽度（考虑 10px 字体），最小 10%，最大 90%
+        var minWidthNeeded = Math.min(Math.max(textLen * 1.5, 10), 90);
         // 使用用户设置的宽度和计算出的最小宽度中的较大值
-        var actualWidth = Math.max(block.width || 8, minWidthNeeded);
+        var actualWidth = Math.max(block.width || 10, minWidthNeeded);
         div.style.width = actualWidth + '%';
 
         // 不设置固定高度，让内容自动撑开
@@ -1509,14 +1509,17 @@ function saveScreenshotTranslation() {
     var originalLen = getTextWidth(originalText);
     var translatedLen = getTextWidth(text);
 
-    // 如果翻译后的文本更长，扩展宽度（最多扩展到原宽度的2倍）
+    // 根据翻译文本长度计算所需最小宽度（每字符约 1.5%）
+    var minWidthByContent = Math.min(translatedLen * 1.5, 90);
+
+    // 如果翻译后的文本更长，扩展宽度（最多扩展到原宽度的2.5倍）
     if (translatedLen > originalLen && originalLen > 0) {
-        var ratio = Math.min(translatedLen / originalLen, 2.0);
-        adjustedWidth = Math.min(originalWidth * ratio, 90); // 最大不超过90%
+        var ratio = Math.min(translatedLen / originalLen, 2.5);
+        adjustedWidth = Math.min(originalWidth * ratio, 90);
     }
 
-    // 确保最小宽度，避免太窄
-    adjustedWidth = Math.max(adjustedWidth, 8);
+    // 确保宽度足够容纳内容，最小 10%
+    adjustedWidth = Math.max(adjustedWidth, minWidthByContent, 10);
 
     var newBlock = {
         page: state.currentSelection.page,
