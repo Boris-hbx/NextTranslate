@@ -270,9 +270,12 @@ def convert_pdf_to_images(pdf_path):
         import fitz  # PyMuPDF
         doc = fitz.open(pdf_path)
 
+        # 云环境下降低分辨率加快处理
+        is_cloud = os.environ.get('RENDER') or os.environ.get('PORT')
+        zoom = 1.2 if is_cloud else 1.5
+
         for page_num in range(len(doc)):
             page = doc.load_page(page_num)
-            zoom = 1.5  # 降低分辨率加快传输
             mat = fitz.Matrix(zoom, zoom)
             pix = page.get_pixmap(matrix=mat)
 
@@ -284,6 +287,9 @@ def convert_pdf_to_images(pdf_path):
         return pages
 
     except ImportError:
+        return []
+    except Exception as e:
+        print(f"PDF conversion error: {e}")
         return []
 
 
@@ -602,6 +608,13 @@ def pdf_upload():
     filename = file.filename.lower()
     if not filename.endswith('.pdf'):
         return jsonify({'success': False, 'error': '请上传 PDF 文件（PPT 请先用 Office 导出为 PDF）'})
+
+    # 文件大小限制 (20MB)
+    file.seek(0, 2)  # 移到文件末尾
+    file_size = file.tell()
+    file.seek(0)  # 回到开头
+    if file_size > 20 * 1024 * 1024:
+        return jsonify({'success': False, 'error': '文件过大，请上传小于 20MB 的 PDF'})
 
     file_id = uuid.uuid4().hex[:8]
     upload_dir = os.path.join(TEMP_DIR, file_id)
