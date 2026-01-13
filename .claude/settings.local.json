@@ -34,7 +34,23 @@
       "Bash(wc:*)",
       "Bash(rustc:*)",
       "Bash(cargo --version:*)",
-      "Bash(cargo check:*)"
+      "Bash(cargo check:*)",
+      "Bash(ls:*)",
+      "Bash(forfiles /P \"backend\" /M app.py /C \"cmd /c echo @fdate @ftime\")",
+      "Bash(cmd.exe /c \"dir C:\\\\Project\\\\boris-workspace\\\\NextTranslate\\\\src-tauri\\\\resources\\\\flask-backend.exe 2>&1\")",
+      "Bash(cmd.exe /c \"dir C:\\\\Project\\\\boris-workspace\\\\NextTranslate\\\\dist\\\\flask-backend.exe 2>&1\")",
+      "Bash(cargo tauri dev:*)",
+      "Bash(set FLASK_DEBUG=1:*)",
+      "Bash(cmd.exe /c \"taskkill /F /IM python.exe\")",
+      "Bash(for pid in 5104 26352 16700 25560 2968 640)",
+      "Bash(do taskkill /F /PID $pid)",
+      "Bash(done)",
+      "Bash(cmd.exe /c \"taskkill /F /PID 5104 && taskkill /F /PID 26352 && taskkill /F /PID 16700 && taskkill /F /PID 25560 && taskkill /F /PID 2968 && taskkill /F /PID 640\")",
+      "Bash(FLASK_PORT=2009 python:*)",
+      "Bash(pip search:*)",
+      "Bash(pip index:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(git fetch:*)"
     ]
   }
 }

@@ -623,7 +623,7 @@
     word-wrap: break-word;
     word-break: break-all;
     box-sizing: border-box;
-    overflow: visible;  /* 不截断，完整显示 */
+    overflow: auto;  /* 超出部分滚动，框大小保持与原始一致 */
 }
 
 .translation-block:hover {

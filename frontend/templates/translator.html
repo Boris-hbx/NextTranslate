@@ -834,27 +834,19 @@ function translateCurrentPage() {
                     var bbox = block.bbox || [0, 0, 100, 20];
                     var x0 = bbox[0], y0 = bbox[1], x1 = bbox[2], y1 = bbox[3];
 
-                    // 转换为百分比坐标
+                    // 转换为百分比坐标（保持与原始框一致的大小）
                     var xPct = (x0 / pdfWidth) * 100;
                     var yPct = (y0 / pdfHeight) * 100;
                     var wPct = ((x1 - x0) / pdfWidth) * 100;
                     var hPct = ((y1 - y0) / pdfHeight) * 100;
 
-                    // 根据翻译文本长度自动扩展宽度
-                    var translated = block.translated || '';
-                    var textLen = 0;
-                    for (var i = 0; i < translated.length; i++) {
-                        textLen += translated.charCodeAt(i) > 127 ? 2 : 1;
-                    }
-                    var minWidthPct = Math.min(Math.max(textLen * 1.2, wPct), 90);
-
                     state.translationBlocks.push({
                         page: pageNum,
                         x: xPct,
                         y: yPct,
-                        width: minWidthPct,
-                        height: hPct,
-                        text: translated,
+                        width: wPct,   // 使用原始框宽度
+                        height: hPct,  // 使用原始框高度
+                        text: block.translated || '',
                         original: block.original || '',
                         source: 'translate-page'  // 标记来源
                     });
@@ -1565,48 +1557,16 @@ function saveScreenshotTranslation() {
         return;
     }
 
-    // 计算合适的宽度：英文通常比中文长，需要扩展框宽度
-    var originalWidth = state.currentSelection.width;
-    var adjustedWidth = originalWidth;
-
-    // 计算文本长度比（考虑中英文差异）
-    // 中文字符算2，英文/数字算1
-    function getTextWidth(str) {
-        var width = 0;
-        for (var i = 0; i < str.length; i++) {
-            var code = str.charCodeAt(i);
-            if (code > 127) {
-                width += 2; // 中文等宽字符
-            } else {
-                width += 1; // ASCII 字符
-            }
-        }
-        return width;
-    }
-
-    var originalLen = getTextWidth(originalText);
-    var translatedLen = getTextWidth(text);
-
-    // 根据翻译文本长度计算所需最小宽度（每字符约 1.5%）
-    var minWidthByContent = Math.min(translatedLen * 1.5, 90);
-
-    // 如果翻译后的文本更长，扩展宽度（最多扩展到原宽度的2.5倍）
-    if (translatedLen > originalLen && originalLen > 0) {
-        var ratio = Math.min(translatedLen / originalLen, 2.5);
-        adjustedWidth = Math.min(originalWidth * ratio, 90);
-    }
-
-    // 确保宽度足够容纳内容，最小 10%
-    adjustedWidth = Math.max(adjustedWidth, minWidthByContent, 10);
-
+    // 使用与左侧选择框完全一致的尺寸
     var newBlock = {
         page: state.currentSelection.page,
         x: state.currentSelection.x,
         y: state.currentSelection.y,
-        width: adjustedWidth,
-        height: state.currentSelection.height,
+        width: state.currentSelection.width,   // 与左侧选择框一致
+        height: state.currentSelection.height, // 与左侧选择框一致
         text: text,
-        original: originalText
+        original: originalText,
+        source: 'screenshot'  // 标记来源
     };
 
     // 移除与新块重叠的旧块
