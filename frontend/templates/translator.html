@@ -473,6 +473,7 @@ function renderPage(pageNum) {
 
 function renderTranslationBlocks(pageNum) {
     var container = document.getElementById('translation-blocks');
+    console.log('renderTranslationBlocks 被调用, pageNum:', pageNum, 'container:', container);
     if (!container) return;
 
     container.innerHTML = '';
@@ -480,6 +481,7 @@ function renderTranslationBlocks(pageNum) {
     var pageBlocks = state.translationBlocks.filter(function(b) {
         return b.page === pageNum;
     });
+    console.log('当前页翻译块数量:', pageBlocks.length, '总块数:', state.translationBlocks.length);
 
     if (pageBlocks.length === 0) return;
 
@@ -814,11 +816,58 @@ function translateCurrentPage() {
     })
     .then(function(r) { return r.json(); })
     .then(function(data) {
+        console.log('翻译响应:', data);  // 调试
         if (data.success) {
-            state.translatedPages[pageNum - 1] = data.preview;
+            // 转换后端的 blocks 为可拖拽的 translationBlocks
+            var pdfWidth = data.page_width || 595;  // 默认 A4 宽度
+            var pdfHeight = data.page_height || 842;  // 默认 A4 高度
+            console.log('PDF尺寸:', pdfWidth, 'x', pdfHeight, 'blocks数量:', data.blocks ? data.blocks.length : 0);
+
+            if (data.blocks && data.blocks.length > 0) {
+                // 先删除当前页现有的"翻译当前页"类型的块
+                state.translationBlocks = state.translationBlocks.filter(function(b) {
+                    return b.page !== pageNum || b.source === 'screenshot';
+                });
+
+                // 添加新的翻译块
+                data.blocks.forEach(function(block) {
+                    var bbox = block.bbox || [0, 0, 100, 20];
+                    var x0 = bbox[0], y0 = bbox[1], x1 = bbox[2], y1 = bbox[3];
+
+                    // 转换为百分比坐标
+                    var xPct = (x0 / pdfWidth) * 100;
+                    var yPct = (y0 / pdfHeight) * 100;
+                    var wPct = ((x1 - x0) / pdfWidth) * 100;
+                    var hPct = ((y1 - y0) / pdfHeight) * 100;
+
+                    // 根据翻译文本长度自动扩展宽度
+                    var translated = block.translated || '';
+                    var textLen = 0;
+                    for (var i = 0; i < translated.length; i++) {
+                        textLen += translated.charCodeAt(i) > 127 ? 2 : 1;
+                    }
+                    var minWidthPct = Math.min(Math.max(textLen * 1.2, wPct), 90);
+
+                    state.translationBlocks.push({
+                        page: pageNum,
+                        x: xPct,
+                        y: yPct,
+                        width: minWidthPct,
+                        height: hPct,
+                        text: translated,
+                        original: block.original || '',
+                        source: 'translate-page'  // 标记来源
+                    });
+                });
+            }
+
+            console.log('添加了翻译块，总数:', state.translationBlocks.length);
+
+            // 使用原图作为右侧背景，翻译块叠加显示
+            state.translatedPages[pageNum - 1] = state.pages[pageNum - 1];
             state.translationStatus[pageNum] = 'translated';
             renderPage(pageNum);
-            showToast('第 ' + pageNum + ' 页翻译完成', 'success');
+            showToast('第 ' + pageNum + ' 页翻译完成，可拖动调整翻译位置', 'success');
         } else {
             state.translationStatus[pageNum] = 'error';
             updatePageStatus(pageNum);
@@ -940,11 +989,40 @@ function doExport() {
     closeExportModal();
     showToast('正在生成 PDF...', 'info');
 
-    var url = '/api/pdf/export?file_id=' + encodeURIComponent(state.fileId) +
-              '&mode=' + encodeURIComponent(mode) +
-              '&orientation=' + encodeURIComponent(orientation);
-
-    window.location.href = url;
+    // 使用 POST 发送当前翻译块位置（用户可能已拖动调整）
+    fetch('/api/pdf/export', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            file_id: state.fileId,
+            mode: mode,
+            orientation: orientation,
+            translation_blocks: state.translationBlocks
+        })
+    })
+    .then(function(response) {
+        if (!response.ok) {
+            return response.json().then(function(data) {
+                throw new Error(data.error || 'Export failed');
+            });
+        }
+        return response.blob();
+    })
+    .then(function(blob) {
+        // 下载文件
+        var url = window.URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = state.filename.replace('.pdf', '') + '_translated.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        window.URL.revokeObjectURL(url);
+        showToast('PDF 导出成功', 'success');
+    })
+    .catch(function(err) {
+        showToast('导出失败: ' + err.message, 'error');
+    });
 }
 
 // ============ 设置 ============

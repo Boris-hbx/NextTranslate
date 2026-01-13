@@ -747,7 +747,9 @@ def pdf_translate_page():
             'success': True,
             'page': page,
             'blocks': translation_blocks,
-            'preview': preview
+            'preview': preview,
+            'page_width': page_width,
+            'page_height': page_height
         })
 
     except Exception as e:
@@ -1463,12 +1465,21 @@ def apply_region_blocks_to_preview(image_data, region_blocks):
         return image_data
 
 
-@app.route('/api/pdf/export', methods=['GET'])
+@app.route('/api/pdf/export', methods=['GET', 'POST'])
 def pdf_export():
     """导出翻译后的 PDF - 支持两种模式"""
-    file_id = request.args.get('file_id', '')
-    mode = request.args.get('mode', 'translation_only')  # translation_only 或 side_by_side
-    orientation = request.args.get('orientation', 'landscape')  # landscape 或 portrait
+    # 支持 GET（旧方式）和 POST（新方式，带翻译块位置）
+    if request.method == 'POST':
+        data = request.get_json()
+        file_id = data.get('file_id', '')
+        mode = data.get('mode', 'translation_only')
+        orientation = data.get('orientation', 'landscape')
+        frontend_blocks = data.get('translation_blocks', [])  # 前端拖拽后的位置
+    else:
+        file_id = request.args.get('file_id', '')
+        mode = request.args.get('mode', 'translation_only')
+        orientation = request.args.get('orientation', 'landscape')
+        frontend_blocks = []
 
     if not file_id:
         return jsonify({'success': False, 'error': '缺少 file_id'})
@@ -1488,16 +1499,21 @@ def pdf_export():
         original_filename = metadata.get('filename', 'document.pdf')
         base_name = os.path.splitext(original_filename)[0]
 
+        # 如果前端传来了 translation_blocks，优先使用（用户可能已拖动调整位置）
+        if frontend_blocks:
+            # 重组 translations 数据，使用前端的块位置
+            translations = reorganize_translations_from_frontend(frontend_blocks)
+
         if not translations:
             return jsonify({'success': False, 'error': '请先翻译文档'})
 
         if mode == 'side_by_side':
             # 左右对照导出
-            pdf_data = export_side_by_side(file_id, metadata, orientation)
+            pdf_data = export_side_by_side(file_id, metadata, orientation, frontend_blocks)
             filename_suffix = '_sidebyside'
         else:
             # 仅翻译结果
-            pdf_data = export_translation_only(file_id, metadata)
+            pdf_data = export_translation_only(file_id, metadata, frontend_blocks)
             filename_suffix = '_translated'
 
         # 使用 ASCII 安全的文件名，中文用 URL 编码
@@ -1518,13 +1534,38 @@ def pdf_export():
         return jsonify({'success': False, 'error': str(e)})
 
 
-def export_translation_only(file_id, metadata):
+def reorganize_translations_from_frontend(frontend_blocks):
+    """将前端的 translationBlocks 重组为后端 translations 格式"""
+    translations = {}
+    for block in frontend_blocks:
+        page = block.get('page', 1)
+        page_str = str(page)
+        if page_str not in translations:
+            translations[page_str] = {'page': page, 'region_blocks': []}
+
+        # 存储为 region_blocks 格式（百分比坐标）
+        translations[page_str]['region_blocks'].append({
+            'x': block.get('x', 0),
+            'y': block.get('y', 0),
+            'width': block.get('width', 10),
+            'height': block.get('height', 5),
+            'text': block.get('text', '')
+        })
+    return translations
+
+
+def export_translation_only(file_id, metadata, frontend_blocks=None):
     """导出仅翻译结果的 PDF"""
     import fitz
 
     upload_dir = os.path.join(TEMP_DIR, file_id)
     source_path = os.path.join(upload_dir, 'source.pdf')
-    translations = metadata.get('translations', {})
+
+    # 如果前端传来了翻译块，优先使用（用户可能已拖动调整）
+    if frontend_blocks:
+        translations = reorganize_translations_from_frontend(frontend_blocks)
+    else:
+        translations = metadata.get('translations', {})
 
     # 打开 PDF
     doc = fitz.open(source_path)
@@ -1536,42 +1577,46 @@ def export_translation_only(file_id, metadata):
             continue
 
         page = doc[page_num]
-        blocks = trans_data.get('blocks', [])
 
         page_rect = page.rect
         page_width = page_rect.width
         page_height = page_rect.height
 
-        # 处理整页翻译的 blocks
-        for block in blocks:
-            bbox = block.get('bbox', [])
-            translated = block.get('translated', '')
-            font_size = block.get('font_size', 12)
+        # 如果是前端传来的数据，只有 region_blocks（百分比坐标）
+        # 如果是 metadata 数据，可能有 blocks（PDF 坐标）和 region_blocks（百分比坐标）
 
-            if not bbox or not translated or len(bbox) < 4:
-                continue
+        # 处理整页翻译的 blocks（仅从 metadata 时使用）
+        if not frontend_blocks:
+            blocks = trans_data.get('blocks', [])
+            for block in blocks:
+                bbox = block.get('bbox', [])
+                translated = block.get('translated', '')
+                font_size = block.get('font_size', 12)
 
-            rect = fitz.Rect(bbox[0], bbox[1], bbox[2], bbox[3])
-            page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1))
+                if not bbox or not translated or len(bbox) < 4:
+                    continue
 
-            text_font_size = min(font_size * 0.9, 14)
-            text_font_size = max(text_font_size, 8)
+                rect = fitz.Rect(bbox[0], bbox[1], bbox[2], bbox[3])
+                page.draw_rect(rect, color=(1, 1, 1), fill=(1, 1, 1))
 
-            try:
-                page.insert_textbox(
-                    rect,
-                    translated,
-                    fontsize=text_font_size,
-                    fontname="china-s",
-                    align=0
-                )
-            except:
+                text_font_size = min(font_size * 0.9, 14)
+                text_font_size = max(text_font_size, 8)
+
                 try:
-                    page.insert_textbox(rect, translated, fontsize=text_font_size, align=0)
+                    page.insert_textbox(
+                        rect,
+                        translated,
+                        fontsize=text_font_size,
+                        fontname="china-s",
+                        align=0
+                    )
                 except:
-                    pass
+                    try:
+                        page.insert_textbox(rect, translated, fontsize=text_font_size, align=0)
+                    except:
+                        pass
 
-        # 处理截图翻译的 region_blocks
+        # 处理百分比坐标的 region_blocks（前端传来的或截图翻译）
         region_blocks = trans_data.get('region_blocks', [])
         for rb in region_blocks:
             x_pct = rb.get('x', 0)
@@ -1608,7 +1653,7 @@ def export_translation_only(file_id, metadata):
         return f.read()
 
 
-def export_side_by_side(file_id, metadata, orientation='landscape'):
+def export_side_by_side(file_id, metadata, orientation='landscape', frontend_blocks=None):
     """导出左右对照的 PDF"""
     from reportlab.lib.pagesizes import A4, landscape, portrait
     from reportlab.pdfgen import canvas
@@ -1620,7 +1665,13 @@ def export_side_by_side(file_id, metadata, orientation='landscape'):
 
     upload_dir = os.path.join(TEMP_DIR, file_id)
     pages = metadata.get('pages', [])
-    translations = metadata.get('translations', {})
+
+    # 如果前端传来了翻译块，优先使用
+    if frontend_blocks:
+        translations = reorganize_translations_from_frontend(frontend_blocks)
+    else:
+        translations = metadata.get('translations', {})
+
     total_pages = len(pages)
 
     # 设置页面尺寸
@@ -2473,6 +2524,14 @@ def open_glossary_file():
 # ============ 启动服务 ============
 
 if __name__ == '__main__':
-    port = int(os.environ.get('FLASK_PORT', 2008))
-    print(f'\n  NextTranslate running at http://localhost:{port}\n')
-    app.run(host='127.0.0.1', port=port, debug=False, threaded=True)
+    # 支持 Render 的 PORT 环境变量
+    port = int(os.environ.get('PORT', os.environ.get('FLASK_PORT', 2008)))
+    host = os.environ.get('HOST', '0.0.0.0')
+    debug = os.environ.get('FLASK_DEBUG', 'false').lower() == 'true'
+
+    print(f'\n  NextTranslate running at http://{host}:{port}\n')
+
+    if debug:
+        app.config['TEMPLATES_AUTO_RELOAD'] = True
+
+    app.run(host=host, port=port, debug=debug, threaded=True)
