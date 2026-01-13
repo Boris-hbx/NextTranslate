@@ -48,14 +48,29 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 # ============ 配置管理 ============
 
 def read_config():
-    """读取配置文件"""
-    if not os.path.exists(CONFIG_FILE):
-        return {}
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            return json.load(f)
-    except:
-        return {}
+    """读取配置文件，环境变量优先"""
+    config = {}
+
+    # 先从文件读取
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
+                config = json.load(f)
+        except:
+            pass
+
+    # 环境变量覆盖（用于 Render 等云部署）
+    env_mappings = {
+        'DOUBAO_API_KEY': 'doubao_api_key',
+        'DOUBAO_ENDPOINT_ID': 'doubao_endpoint_id',
+        'DEEPSEEK_API_KEY': 'deepseek_api_key',
+    }
+    for env_key, config_key in env_mappings.items():
+        env_value = os.environ.get(env_key)
+        if env_value:
+            config[config_key] = env_value
+
+    return config
 
 def write_config(config):
     """保存配置文件"""
